@@ -13,6 +13,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use('/api', booksRouter);
-/*app.use('/uploads', express.static(path.join(__dirname, 'uploads')));*/
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.listen(PORT, () => console.log(`server started on port ${PORT}`));
