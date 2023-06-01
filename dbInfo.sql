@@ -1,5 +1,5 @@
 -- Создание таблицы книг
-CREATE TABLE books
+CREATE TABLE IF NOT EXISTS books
 (
     book_id    INT AUTO_INCREMENT PRIMARY KEY,
     title      VARCHAR(255) NOT NULL ,
@@ -10,7 +10,7 @@ CREATE TABLE books
 );
 
 -- Создание таблицы пользователей
-CREATE TABLE users
+CREATE TABLE IF NOT EXISTS users
 (
     user_id     INT AUTO_INCREMENT PRIMARY KEY,
     login       VARCHAR(255) NOT NULL ,
@@ -24,7 +24,7 @@ CREATE TABLE users
 );
 
 -- Создание таблицы заказов
-CREATE TABLE orders
+CREATE TABLE IF NOT EXISTS orders
 (
     order_id INT AUTO_INCREMENT PRIMARY KEY,
     book_id  INT,
@@ -34,7 +34,7 @@ CREATE TABLE orders
 );
 
 -- Создание таблицы деталей заказов
-CREATE TABLE order_details
+CREATE TABLE IF NOT EXISTS order_details
 (
     detail_id  INT AUTO_INCREMENT PRIMARY KEY,
     order_id   INT,
@@ -45,7 +45,7 @@ CREATE TABLE order_details
 );
 
 -- Создание таблицы избранного
-CREATE TABLE favorites
+CREATE TABLE IF NOT EXISTS favorites
 (
     favorite_id INT AUTO_INCREMENT PRIMARY KEY,
     book_id     INT,
@@ -55,21 +55,21 @@ CREATE TABLE favorites
 );
 
 -- Создание таблицы жанров
-CREATE TABLE genres
+CREATE TABLE IF NOT EXISTS genres
 (
     genre_id   INT AUTO_INCREMENT PRIMARY KEY,
     genre_name VARCHAR(255)
 );
 
 -- Создание таблицы издательств
-CREATE TABLE publishments
+CREATE TABLE IF NOT EXISTS publishments
 (
     publishment_id   INT AUTO_INCREMENT PRIMARY KEY,
     publishment_name VARCHAR(255)
 );
 
 -- Создание связующей таблицы Books_genres
-CREATE TABLE books_genres
+CREATE TABLE IF NOT EXISTS books_genres
 (
     books_genres_id INT AUTO_INCREMENT PRIMARY KEY,
     book_id         INT,
@@ -79,7 +79,7 @@ CREATE TABLE books_genres
 );
 
 -- Создание связующей таблицы Books_publishments
-CREATE TABLE books_publishments
+CREATE TABLE IF NOT EXISTS books_publishments
 (
     books_publishments_id INT AUTO_INCREMENT PRIMARY KEY,
     book_id               INT,
@@ -88,6 +88,33 @@ CREATE TABLE books_publishments
     FOREIGN KEY (publishment_id) REFERENCES publishments (publishment_id)
 );
 
-CREATE TABLE schema_version (
+CREATE TABLE IF NOT EXISTS schema_version (
     schema_version INT NOT NULL
 );
+
+DROP PROCEDURE IF EXISTS init;
+DELIMITER //
+CREATE PROCEDURE init()
+BEGIN
+    DECLARE ver INT;
+
+    SELECT schema_version FROM schema_version INTO ver;
+    IF ver IS NULL THEN
+        SET ver = 1;
+        INSERT INTO schema_version (schema_version) VALUES (ver);
+    END IF;
+
+    IF ver = 1 THEN
+        ALTER TABLE users CHANGE COLUMN password password_hash VARCHAR(255) NOT NULL DEFAULT '';
+        ALTER TABLE users ADD COLUMN one_time_password_hash VARCHAR(255) NOT NULL DEFAULT '';
+        ALTER TABLE users ADD COLUMN token VARCHAR(255) NOT NULL DEFAULT '';
+        ALTER TABLE users ADD UNIQUE (login);
+        ALTER TABLE users ADD UNIQUE (email);
+        ALTER TABLE users ADD UNIQUE (phone);
+        SET ver = ver + 1;
+    END IF;
+
+    UPDATE schema_version SET schema_version = ver;
+END //
+DELIMITER ;
+CALL init();
