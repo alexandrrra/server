@@ -124,14 +124,14 @@ class UserController  {
         for (const field of profileFields) {
             const value = req.body[field]
             if (value !== undefined) {
-                updates.push(`?`)
+                updates.push(`${field} = ?`)
                 values.push(value)
             }
         }
 
-        if (password) {
+        if (req.body.password) {
             updates.push(`password_hash = ?`)
-            values.push(md5(password + SALT))
+            values.push(md5(req.body.password + SALT))
         }
 
         if (updates.length === 0) {
