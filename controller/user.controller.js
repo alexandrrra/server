@@ -22,7 +22,7 @@ class UserController  {
             const users = await db.query(
                 `INSERT INTO users
                     (role, first_name, last_name, middle_name, login, phone, email, password_hash, token)
-                    VALUES ('user', $1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+                    VALUES ('user', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
                 [first_name, last_name, middle_name, login, phone, email, md5(password + SALT), token]
             )
             if (users.rowCount === 0) {
@@ -40,7 +40,7 @@ class UserController  {
             const {login, password} = req.body
             const passwordHash = md5(password + SALT)
             const users = await db.query(
-                `SELECT * FROM users WHERE login = $1`,
+                `SELECT * FROM users WHERE login = ?`,
                 [login]
             )
             if (users.rowCount !== 1) {
@@ -51,8 +51,8 @@ class UserController  {
             }
             const token = uuid4()
             await db.query(
-                `UPDATE users SET token = $1, one_time_password_hash = ''
-                    WHERE user_id = $2`,
+                `UPDATE users SET token = ?, one_time_password_hash = ''
+                    WHERE user_id = ?`,
                 [token, users.rows[0].user_id]
             )
             res.json({user_id: users.rows[0].user_id, token, profile: extractProfile(users.rows[0])})
@@ -69,8 +69,8 @@ class UserController  {
             }
             const token = uuid4()
             const users = await db.query(
-                `UPDATE users SET token = $1
-                    WHERE user_id = $2 AND token = $3 RETURNING *`,
+                `UPDATE users SET token = ?
+                    WHERE user_id = ? AND token = ? RETURNING *`,
                 [token, req.cookies.user_id, req.cookies.token]
             )
             if (users.rowCount !== 1) {
@@ -86,8 +86,8 @@ class UserController  {
     async deleteToken(req, res) {
         try {
             const updatedUsers = await db.query(
-                `UPDATE users SET token = $1
-                    WHERE user_id = $2 AND token = $3`,
+                `UPDATE users SET token = ?
+                    WHERE user_id = ? AND token = ?`,
                 ["", req.cookies.user_id, req.cookies.token]
             )
             if (updatedUsers.rowCount !== 1) {
@@ -102,9 +102,9 @@ class UserController  {
 
     async getProfile(req, res) {
         try {
-            let users = await db.query(
+            const users = await db.query(
                 `SELECT * FROM users
-                    WHERE user_id = $1 AND token = $2`,
+                    WHERE user_id = ? AND token = ?`,
                 [req.cookies.user_id, req.cookies.token]
             )
             if (users.rowCount !== 1) {
@@ -124,13 +124,13 @@ class UserController  {
         for (const field of profileFields) {
             const value = req.body[field]
             if (value !== undefined) {
-                updates.push(`${field} = ${values.length + 1}`)
+                updates.push(`?`)
                 values.push(value)
             }
         }
 
         if (password) {
-            updates.push(`password_hash = ${values.length + 1}`)
+            updates.push(`password_hash = ?`)
             values.push(md5(password + SALT))
         }
 
@@ -141,7 +141,7 @@ class UserController  {
         values.push(req.cookies.user_id)
         values.push(req.cookies.token)
         const query = `UPDATE users SET ${updates.join(', ')}
-            WHERE user_id = $${values.length - 1} AND token = $${values.length}
+            WHERE user_id = ? AND token = ?
             RETURNING *`
 
         try {
@@ -161,8 +161,8 @@ class UserController  {
             const { email } = req.body
             const oneTimePassword = uuid4()
             const users = await db.query(
-                `UPDATE users SET one_time_password_hash = $1
-                    WHERE email = $2 RETURNING *`,
+                `UPDATE users SET one_time_password_hash = ?
+                    WHERE email = ? RETURNING *`,
                 [md5(oneTimePassword + SALT), email]
             )
             if (users.rowCount !== 1) {
