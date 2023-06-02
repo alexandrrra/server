@@ -114,6 +114,12 @@ BEGIN
         SET ver = ver + 1;
     END IF;
 
+    IF ver = 2 THEN
+        ALTER TABLE users MODIFY COLUMN email VARCHAR(255);
+        ALTER TABLE users MODIFY COLUMN phone VARCHAR(255);
+        SET ver = ver + 1;
+    END IF;
+
     UPDATE schema_version SET schema_version = ver;
 END //
 DELIMITER ;

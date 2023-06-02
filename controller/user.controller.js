@@ -15,20 +15,27 @@ class UserController  {
     async createUser(req, res) {
         try {
             const {first_name, last_name, middle_name, login, phone, email, password} = req.body
-            if (!login || !phone || !email || !password) {
+            if (!login || !password) {
                 return res.status(400).json({ error: 'Bad params' })
             }
             const token = uuid4()
-            const users = await db.query(
+            let [users] = await db.query(
                 `INSERT INTO users
-                    (role, first_name, last_name, middle_name, login, phone, email, password_hash, token)
-                    VALUES ('user', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-                [first_name, last_name, middle_name, login, phone, email, md5(password + SALT), token]
+                    (role, first_name, last_name, middle_name, login, phone, email, password_hash, one_time_password_hash, token)
+                    VALUES ('user', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [first_name || '', last_name || '', middle_name || '', login, phone, email, md5(password + SALT), '', token]
             )
-            if (users.rowCount === 0) {
+            if (users.affectedRows !== 1) {
                 return res.status(404).json({ error: 'Unexpected error' })
             }
-            res.json({user_id: users.rows[0].user_id, token, profile: extractProfile(users.rows[0])})
+            [users] = await db.query(
+                `SELECT * FROM users WHERE user_id = ?`,
+                [users.insertId]
+            )
+            if (users.length !== 1) {
+                return res.status(404).json({ error: 'Unexpected error' })
+            }
+            res.json({user_id: users[0].user_id, token, profile: extractProfile(users[0])})
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Failed to create user' })
@@ -39,23 +46,23 @@ class UserController  {
         try {
             const {login, password} = req.body
             const passwordHash = md5(password + SALT)
-            const users = await db.query(
+            const [users] = await db.query(
                 `SELECT * FROM users WHERE login = ?`,
                 [login]
             )
-            if (users.rowCount !== 1) {
+            if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad login or password' })
             }
-            if (users.rows[0].password_hash !== passwordHash && users.rows[0].one_time_password_hash !== passwordHash) {
+            if (users[0].password_hash !== passwordHash && users[0].one_time_password_hash !== passwordHash) {
                 return res.status(403).json({ error: 'Bad login or password' })
             }
             const token = uuid4()
             await db.query(
                 `UPDATE users SET token = ?, one_time_password_hash = ''
                     WHERE user_id = ?`,
-                [token, users.rows[0].user_id]
+                [token, users[0].user_id]
             )
-            res.json({user_id: users.rows[0].user_id, token, profile: extractProfile(users.rows[0])})
+            res.json({user_id: users[0].user_id, token, profile: extractProfile(users[0])})
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Failed to set token' })
@@ -68,15 +75,22 @@ class UserController  {
                 return res.json({ success: false, error: 'bad user_id or token' })
             }
             const token = uuid4()
-            const users = await db.query(
+            let [users] = await db.query(
                 `UPDATE users SET token = ?
-                    WHERE user_id = ? AND token = ? RETURNING *`,
+                    WHERE user_id = ? AND token = ?`,
                 [token, req.cookies.user_id, req.cookies.token]
             )
-            if (users.rowCount !== 1) {
+            if (users.changedRows !== 1) {
                 return res.json({ success: false, error: 'bad user_id or token' })
             }
-            res.json({success: true, token, profile: extractProfile(users.rows[0])})
+            [users] = await db.query(
+                `SELECT * FROM users WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            if (users.length !== 1) {
+                return res.status(404).json({ error: 'Unexpected error' })
+            }
+            res.json({success: true, token, profile: extractProfile(users[0])})
         } catch (error) {
             console.error(error)
             res.json({ success: false, error: 'failed to refresh token' })
@@ -85,12 +99,12 @@ class UserController  {
 
     async deleteToken(req, res) {
         try {
-            const updatedUsers = await db.query(
+            const [users] = await db.query(
                 `UPDATE users SET token = ?
                     WHERE user_id = ? AND token = ?`,
                 ["", req.cookies.user_id, req.cookies.token]
             )
-            if (updatedUsers.rowCount !== 1) {
+            if (users.affectedRows !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
             res.status(200).json({message: 'Token deleted successfully'})
@@ -102,15 +116,15 @@ class UserController  {
 
     async getProfile(req, res) {
         try {
-            const users = await db.query(
+            const [users] = await db.query(
                 `SELECT * FROM users
                     WHERE user_id = ? AND token = ?`,
                 [req.cookies.user_id, req.cookies.token]
             )
-            if (users.rowCount !== 1) {
+            if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
-            res.json(extractProfile(users.rows[0]))
+            res.json(extractProfile(users[0]))
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Failed to get profile' })
@@ -141,15 +155,21 @@ class UserController  {
         values.push(req.cookies.user_id)
         values.push(req.cookies.token)
         const query = `UPDATE users SET ${updates.join(', ')}
-            WHERE user_id = ? AND token = ?
-            RETURNING *`
+            WHERE user_id = ? AND token = ?`
 
         try {
-            const users = await db.query(query, values)
-            if (users.rowCount !== 1) {
+            let [users] = await db.query(query, values)
+            if (users.affectedRows !== 1) {
                 return res.status(500).json({ error: 'Failed to update profile' })
             }
-            res.json(extractProfile(users.rows[0]))
+            [users] = await db.query(
+                `SELECT * FROM users WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            if (users.length !== 1) {
+                return res.status(404).json({ error: 'Unexpected error' })
+            }
+            res.json(extractProfile(users[0]))
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Failed to update profile' })
@@ -160,12 +180,12 @@ class UserController  {
         try {
             const { email } = req.body
             const oneTimePassword = uuid4()
-            const users = await db.query(
+            const [users] = await db.query(
                 `UPDATE users SET one_time_password_hash = ?
-                    WHERE email = ? RETURNING *`,
+                    WHERE email = ?`,
                 [md5(oneTimePassword + SALT), email]
             )
-            if (users.rowCount !== 1) {
+            if (users.changedRows !== 1) {
                 return res.status(500).json({ error: 'Failed to send one-time password' })
             }
 
