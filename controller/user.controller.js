@@ -26,19 +26,19 @@ class UserController  {
                 [first_name || '', last_name || '', middle_name || '', login, phone, email, md5(password + SALT), '', token]
             )
             if (users.affectedRows !== 1) {
-                return res.status(404).json({ error: 'Unexpected error' })
+                return res.status(404).json({ error: 'Can not insert new user' })
             }
             [users] = await db.query(
                 `SELECT * FROM users WHERE user_id = ?`,
                 [users.insertId]
             )
             if (users.length !== 1) {
-                return res.status(404).json({ error: 'Unexpected error' })
+                return res.status(404).json({ error: 'Can not get new user info' })
             }
             res.json({user_id: users[0].user_id, token, profile: extractProfile(users[0])})
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to create user' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
@@ -50,10 +50,7 @@ class UserController  {
                 `SELECT * FROM users WHERE login = ?`,
                 [login]
             )
-            if (users.length !== 1) {
-                return res.status(403).json({ error: 'Bad login or password' })
-            }
-            if (users[0].password_hash !== passwordHash && users[0].one_time_password_hash !== passwordHash) {
+            if (users.length !== 1 || (users[0].password_hash !== passwordHash && users[0].one_time_password_hash !== passwordHash)) {
                 return res.status(403).json({ error: 'Bad login or password' })
             }
             const token = uuid4()
@@ -65,7 +62,7 @@ class UserController  {
             res.json({user_id: users[0].user_id, token, profile: extractProfile(users[0])})
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to set token' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
@@ -88,7 +85,7 @@ class UserController  {
                 [req.cookies.user_id]
             )
             if (users.length !== 1) {
-                return res.status(404).json({ error: 'Unexpected error' })
+                return res.status(404).json({ error: 'Can not get profile' })
             }
             res.json({success: true, token, profile: extractProfile(users[0])})
         } catch (error) {
@@ -110,7 +107,7 @@ class UserController  {
             res.status(200).json({message: 'Token deleted successfully'})
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to delete token' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
@@ -127,7 +124,7 @@ class UserController  {
             res.json(extractProfile(users[0]))
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to get profile' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
@@ -167,12 +164,12 @@ class UserController  {
                 [req.cookies.user_id]
             )
             if (users.length !== 1) {
-                return res.status(404).json({ error: 'Unexpected error' })
+                return res.status(500).json({ error: 'Can not get updated profile' })
             }
             res.json(extractProfile(users[0]))
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to update profile' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
@@ -186,7 +183,7 @@ class UserController  {
                 [md5(oneTimePassword + SALT), email]
             )
             if (users.changedRows !== 1) {
-                return res.status(500).json({ error: 'Failed to send one-time password' })
+                return res.status(500).json({ error: 'Unexpected error' })
             }
 
             await utilsController.sendMail({
@@ -199,25 +196,166 @@ class UserController  {
             res.status(200).json({message: 'One-time password send successfully'})
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to send one-time password' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
-    async getFavorite(req, res) {
+    async getFavorites(req, res) {
         try {
-            res.json([])
+            const [favorites] = await db.query(
+                `SELECT * FROM favorites AS f
+                    JOIN books AS b ON b.book_id = f.book_id
+                    WHERE user_id = ? ORDER BY b.title`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            res.json(favorites.map(x => x))
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to get favorite' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
-    async getCart(req, res) {
+    async addFavorite(req, res) {
         try {
-            res.json([])
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [favorites] = await db.query(
+                `SELECT * FROM favorites WHERE book_id = ? AND user_id = ?`,
+                [req.body.id, req.cookies.user_id]
+            )
+            if (favorites.length === 0) {
+                await db.query(
+                    `INSERT INTO favorites
+                        (book_id, user_id)
+                        VALUES (?, ?)`,
+                    [req.body.id, req.cookies.user_id]
+                )
+            }
+            res.status(200).json({ message: 'added' })
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to get cart' })
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async deleteFavorite(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            await db.query(
+                `DELETE FROM favorites WHERE book_id = ? AND user_id = ?`,
+                [req.params.id, req.cookies.user_id]
+            )
+            res.status(200).json({ message: 'deleted' });
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async getProducts(req, res) {
+        try {
+            const [products] = await db.query(
+                `SELECT * FROM products AS f
+                    JOIN books AS b ON b.book_id = f.book_id
+                    WHERE user_id = ? ORDER BY b.title`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            res.json(products.map(x => x))
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async addProduct(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [products] = await db.query(
+                `SELECT * FROM products WHERE book_id = ? AND user_id = ?`,
+                [req.body.id, req.cookies.user_id]
+            )
+            if (products.length === 0) {
+                await db.query(
+                    `INSERT INTO products
+                        (book_id, user_id, quantity)
+                        VALUES (?, ?, 1)`,
+                    [req.body.id, req.cookies.user_id]
+                )
+            } else {
+                await db.query(
+                    `UPDATE products SET quantity = quantity + 1 WHERE book_id = ? AND user_id = ?`,
+                    [req.body.id, req.cookies.user_id]
+                )
+            }
+            res.status(200).json({ message: 'added' })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async updateProduct(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [products] = await db.query(
+                `UPDATE products SET quantity = ? WHERE book_id = ? AND user_id = ?`,
+                [req.body.quantity, req.params.id, req.cookies.user_id]
+            )
+            if (products.affectedRows !== 1) {
+                return res.status(500).json({ error: 'Unexpected error' })
+            }
+            res.status(200).json({ message: 'deleted' });
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async deleteProduct(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            await db.query(
+                `DELETE FROM products WHERE book_id = ? AND user_id = ?`,
+                [req.params.id, req.cookies.user_id]
+            )
+            res.status(200).json({ message: 'deleted' });
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 }

@@ -13,7 +13,13 @@ router.put('/profile', userController.updateProfile)
 
 router.post('/sendOneTimePassword', userController.sendOneTimePassword)
 
-router.get('/user/favorite', userController.getFavorite)
-router.get('/user/cart', userController.getCart)
+router.get('/favorites', userController.getFavorites)
+router.post('/favorites', userController.addFavorite)
+router.delete('/favorites/:id', userController.deleteFavorite)
+
+router.get('/products', userController.getProducts)
+router.post('/products', userController.addProduct)
+router.put('/products/:id', userController.updateProduct)
+router.delete('/products/:id', userController.deleteProduct)
 
 module.exports = router

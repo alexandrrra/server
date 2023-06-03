@@ -15,35 +15,29 @@ function deleteFile(filePath) {
 class BooksController {
     async getBooks(req, res) {
         try {
-            const [books] = await db.query('SELECT * FROM books ORDER BY title')
+            const newOnly = req.query.newOnly === "true"
+            const [books] = await db.query(
+                newOnly
+                    ? 'SELECT * FROM books ORDER BY book_id DESC LIMIT 4'
+                    : 'SELECT * FROM books ORDER BY title'
+            )
             res.json(books.map(x => x))
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to get books' })
-        }
-    }
-
-    async getNewBooks(req, res) {
-        try {
-            const [books] = await db.query('SELECT * FROM books ORDER BY book_id DESC LIMIT 4')
-            res.json(books.map(x => x))
-        } catch (error) {
-            console.error(error)
-            res.status(500).json({ error: 'Failed to get books' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 
     async getOneBook(req, res) {
-        const id = req.params.id;
         try {
-            const [books] = await db.query('SELECT * FROM books WHERE book_id = ?', [id])
+            const [books] = await db.query('SELECT * FROM books WHERE book_id = ?', [req.params.id])
             if (books.length !== 1) {
-                return res.status(500).json({ error: 'Failed to get one book' })
+                return res.status(404).json({ error: 'Failed to get one book' })
             }
             res.json(books[0])
         } catch (error) {
             console.error(error)
-            res.status(500).json({ error: 'Failed to get one book' })
+            res.status(500).json({ error: 'Unexpected error' })
         }
     }
 }

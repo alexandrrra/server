@@ -92,6 +92,16 @@ CREATE TABLE IF NOT EXISTS schema_version (
     schema_version INT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS products
+(
+    product_id INT AUTO_INCREMENT PRIMARY KEY,
+    book_id  INT,
+    user_id  INT,
+    quantity INT NOT NULL ,
+    FOREIGN KEY (book_id) REFERENCES books (book_id),
+    FOREIGN KEY (user_id) REFERENCES users (user_id)
+);
+
 DROP PROCEDURE IF EXISTS init;
 DELIMITER //
 CREATE PROCEDURE init()
