@@ -13,4 +13,7 @@ router.put('/profile', userController.updateProfile)
 
 router.post('/sendOneTimePassword', userController.sendOneTimePassword)
 
+router.get('/user/favorite', userController.getFavorite)
+router.get('/user/cart', userController.getCart)
+
 module.exports = router

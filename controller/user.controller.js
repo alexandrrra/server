@@ -202,6 +202,24 @@ class UserController  {
             res.status(500).json({ error: 'Failed to send one-time password' })
         }
     }
+
+    async getFavorite(req, res) {
+        try {
+            res.json([])
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to get favorite' })
+        }
+    }
+
+    async getCart(req, res) {
+        try {
+            res.json([])
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to get cart' })
+        }
+    }
 }
 
 module.exports = new UserController()

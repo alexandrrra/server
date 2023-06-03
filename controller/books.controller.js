@@ -15,13 +15,23 @@ function deleteFile(filePath) {
 
 class BooksController {
     async getBooks(req, res) {
-        const [books] = await db.query('SELECT * FROM books')
-        res.json(books)
+        try {
+            const [books] = await db.query('SELECT * FROM books')
+            res.json(books)
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to get books' })
+        }
     }
     async getOneBook(req, res) {
         const id = req.params.id;
-        const [book] = await db.query('SELECT * FROM books WHERE book_id = ?', [id])
-        res.json(book)
+        try {
+            const [book] = await db.query('SELECT * FROM books WHERE book_id = ?', [id])
+            res.json(book)
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to get one book' })
+        }
     }
 }
 
