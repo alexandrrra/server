@@ -5,4 +5,6 @@ const booksController = require ('../controller/books.controller')
 router.get('/books', booksController.getBooks)
 router.get('/books/:id', booksController.getOneBook)
 
+router.get('/filterOptions', booksController.getFilterOptions)
+
 module.exports = router

@@ -40,6 +40,35 @@ class BooksController {
             res.status(500).json({ error: 'Unexpected error' })
         }
     }
+
+    async getFilterOptions(req, res) {
+        try {
+            const [priceRange] = await db.query(
+                'SELECT MIN(price) AS min_price, MAX(price) AS max_price FROM books'
+            )
+            const [authors] = await db.query(
+                'SELECT DISTINCT(author) FROM books ORDER BY author'
+            )
+            const [genres] = await db.query(
+                'SELECT * FROM genres ORDER BY genre_name'
+            )
+            const [publishments] = await db.query(
+                'SELECT * FROM publishments ORDER BY publishment_name'
+            )
+            res.json({
+                price: {
+                    min: priceRange[0].min_price,
+                    max: priceRange[0].max_price
+                },
+                authors: authors.map(x => x),
+                genres: genres.map(x => x),
+                publishments: publishments.map(x => x)
+            })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
 }
 
 module.exports = new BooksController()
