@@ -22,8 +22,14 @@ class BooksController {
             const values = [];
 
             if (filter.query !== undefined && filter.query !== "") {
-                conditions.push('b.title LIKE ?');
-                values.push(`%${filter.query}%`);
+                if (filter.author !== undefined && filter.author !== '') {
+                    conditions.push('b.title LIKE ?');
+                    values.push(`%${filter.query}%`);
+                } else {
+                    conditions.push('(b.title LIKE ? OR b.author LIKE ?)');
+                    values.push(`%${filter.query}%`);
+                    values.push(`%${filter.query}%`);
+                }
             }
 
             if (filter.minPrice !== undefined) {
