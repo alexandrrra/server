@@ -59,7 +59,11 @@ class UserController  {
                     WHERE user_id = ?`,
                 [token, users[0].user_id]
             )
-            res.json({user_id: users[0].user_id, token, profile: extractProfile(users[0])})
+            const [products] = await db.query(
+                `SELECT SUM(quantity) AS products_count FROM products WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            res.json({user_id: users[0].user_id, token, profile: extractProfile(users[0]), products_count: products[0].products_count || 0})
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
@@ -87,7 +91,11 @@ class UserController  {
             if (users.length !== 1) {
                 return res.status(404).json({ error: 'Can not get profile' })
             }
-            res.json({success: true, token, profile: extractProfile(users[0])})
+            const [products] = await db.query(
+                `SELECT SUM(quantity) AS products_count FROM products WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            res.json({success: true, token, profile: extractProfile(users[0]), products_count: products[0].products_count || 0})
         } catch (error) {
             console.error(error)
             res.json({ success: false, error: 'failed to refresh token' })
@@ -290,7 +298,7 @@ class UserController  {
             if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
-            const [products] = await db.query(
+            let [products] = await db.query(
                 `SELECT * FROM products WHERE book_id = ? AND user_id = ?`,
                 [req.body.id, req.cookies.user_id]
             )
@@ -307,7 +315,11 @@ class UserController  {
                     [req.body.id, req.cookies.user_id]
                 )
             }
-            res.status(200).json({ message: 'added' })
+            [products] = await db.query(
+                `SELECT SUM(quantity) AS products_count FROM products WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            res.status(200).json({ products_count: products[0].products_count || 0 })
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
@@ -331,7 +343,11 @@ class UserController  {
             if (products.affectedRows !== 1) {
                 return res.status(500).json({ error: 'Unexpected error' })
             }
-            res.status(200).json({ message: 'deleted' });
+            [products] = await db.query(
+                `SELECT SUM(quantity) AS products_count FROM products WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            res.status(200).json({ products_count: products[0].products_count || 0 })
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
@@ -352,7 +368,11 @@ class UserController  {
                 `DELETE FROM products WHERE book_id = ? AND user_id = ?`,
                 [req.params.id, req.cookies.user_id]
             )
-            res.status(200).json({ message: 'deleted' });
+            const [products] = await db.query(
+                `SELECT SUM(quantity) AS products_count FROM products WHERE user_id = ?`,
+                [req.cookies.user_id]
+            )
+            res.status(200).json({ products_count: products[0].products_count || 0 })
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
