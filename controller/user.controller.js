@@ -336,7 +336,7 @@ class UserController  {
             if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
-            const [products] = await db.query(
+            let [products] = await db.query(
                 `UPDATE products SET quantity = ? WHERE book_id = ? AND user_id = ?`,
                 [req.body.quantity, req.params.id, req.cookies.user_id]
             )
