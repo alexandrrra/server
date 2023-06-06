@@ -102,6 +102,17 @@ CREATE TABLE IF NOT EXISTS products
     FOREIGN KEY (user_id) REFERENCES users (user_id)
 );
 
+CREATE TABLE IF NOT EXISTS feedbacks
+(
+    feedback_id INT AUTO_INCREMENT PRIMARY KEY,
+    rating  INT,
+    body    VARCHAR(255),
+    book_id INT,
+    user_id INT,
+    FOREIGN KEY (book_id) REFERENCES books (book_id),
+    FOREIGN KEY (user_id) REFERENCES users (user_id)
+);
+
 DROP PROCEDURE IF EXISTS init;
 DELIMITER //
 CREATE PROCEDURE init()

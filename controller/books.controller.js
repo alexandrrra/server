@@ -1,6 +1,7 @@
 const db = require('../db')
 const fs = require('fs')
 const path = require('path')
+const utilsController = require ('./utils.controller')
 
 function deleteFile(filePath) {
     fs.unlink(path.join(__dirname, filePath), (err) => {
@@ -79,11 +80,94 @@ class BooksController {
 
     async getOneBook(req, res) {
         try {
-            const [books] = await db.query('SELECT * FROM books WHERE book_id = ?', [req.params.id])
+            const [books] = await db.query(
+                `SELECT b.*, g.*, p.* FROM books AS b
+                    LEFT JOIN books_genres AS bg ON bg.book_id = b.book_id
+                    LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
+                    LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
+                    LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
+                    WHERE b.book_id = ?`,
+                [req.params.id]
+            )
             if (books.length !== 1) {
                 return res.status(404).json({ error: 'Failed to get one book' })
             }
-            res.json(books[0])
+            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            res.json({...books[0], rating, user_feedback, feedbacks})
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async createFeedback(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [userFeedbacks] = await db.query(
+                `INSERT INTO feedbacks
+                    (rating, body, book_id, user_id)
+                    VALUES (?, ?, ?, ?)`,
+                [req.body.rating, req.body.body, req.params.id, req.cookies.user_id]
+            )
+            if (userFeedbacks.affectedRows !== 1) {
+                return res.status(404).json({ error: 'Can not insert new feedback' })
+            }
+            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            res.json({rating, user_feedback, feedbacks})
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async updateFeedback(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [userFeedbacks] = await db.query(
+                `UPDATE feedbacks SET rating = ?, body = ? WHERE book_id = ? AND user_id = ?`,
+                [req.body.rating, req.body.body, req.params.id, req.cookies.user_id]
+            )
+            if (userFeedbacks.affectedRows !== 1) {
+                return res.status(404).json({ error: 'Can not update feedback' })
+            }
+            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            res.json({rating, user_feedback, feedbacks})
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async deleteFeedback(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            await db.query(
+                `DELETE FROM feedbacks WHERE book_id = ? AND user_id = ?`,
+                [req.params.id, req.cookies.user_id]
+            )
+            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            res.json({rating, user_feedback, feedbacks})
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })

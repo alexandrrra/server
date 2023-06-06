@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer')
+const db = require('../db')
 
 const transporter = nodemailer.createTransport({
     host: "mail.hostland.ru",
@@ -13,6 +14,46 @@ const transporter = nodemailer.createTransport({
 class UtilsController  {
     async sendMail(mailOptions) {
         return await transporter.sendMail(mailOptions)
+    }
+
+    async getRatingAndFeedbacks(book_id, user_id) {
+        let userFeedbacks = []
+        if (user_id) {
+            [userFeedbacks] = await db.query(
+                `SELECT f.*, u.login FROM feedbacks AS f
+                    LEFT JOIN users AS u ON f.user_id = u.user_id
+                    WHERE f.book_id = ? AND f.user_id = ?`,
+                [book_id, user_id]
+            )
+        }
+        const [feedbacks] = await db.query(
+            `SELECT f.*, u.login FROM feedbacks AS f
+                LEFT JOIN users AS u ON f.user_id = u.user_id
+                WHERE f.book_id = ?${user_id ? ' AND f.user_id <> ?' : ''} ORDER BY feedback_id DESC`,
+            user_id ? [book_id, user_id] : [book_id]
+        )
+        let rating = 0
+        let count = 0;
+        if (userFeedbacks.length > 0 && userFeedbacks[0].rating) {
+            rating = userFeedbacks[0].rating
+            count++;
+        }
+        if (feedbacks.length > 0) {
+            for (const f of feedbacks) {
+                if (f.rating) {
+                    rating += f.rating
+                    count++;
+                }
+            }
+        }
+        if (count) {
+            rating /= count
+        }
+        return [
+            rating,
+            userFeedbacks.length === 1 ? userFeedbacks[0] : {},
+            feedbacks.map(x => x)
+        ]
     }
 }
 
