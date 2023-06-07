@@ -408,8 +408,8 @@ class UserController  {
                 total = products[0].total;
 
                 const [orders] = await db.query(
-                    `INSERT INTO orders (user_id, address, order_date, total, pending)
-                        VALUES (?, ?, NOW(), ?, ?, TRUE)`,
+                    `INSERT INTO orders (user_id, address, total, order_date, pending)
+                        VALUES (?, ?, ?, NOW(), TRUE)`,
                     [req.cookies.user_id, req.body.address, total]
                 )
                 if (orders.affectedRows !== 1) {
