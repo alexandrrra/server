@@ -22,4 +22,8 @@ router.post('/products', userController.addProduct)
 router.put('/products/:id', userController.updateProduct)
 router.delete('/products/:id', userController.deleteProduct)
 
+router.post('/orders', userController.createOrder)
+router.get('/orders', userController.getOrders)
+router.get('/orders/:id', userController.getOneOrder)
+
 module.exports = router

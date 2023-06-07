@@ -378,6 +378,134 @@ class UserController  {
             res.status(500).json({ error: 'Unexpected error' })
         }
     }
+
+    async createOrder(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+
+            let order_id, total
+            const _id = uuid4()
+            const connection = await db.getConnection()
+            try {
+                await connection.query('START TRANSACTION')
+
+                const [products] = await db.query(
+                    `SELECT SUM(p.quantity * b.price) AS total FROM products AS p
+                        JOIN books AS b ON b.book_id = p.book_id
+                        WHERE user_id = ?`,
+                    [req.cookies.user_id]
+                )
+                if (products.length === 0 || !products[0].total) {
+                    await connection.query('ROLLBACK')
+                    return res.status(500).json({ error: 'Can not get total' })
+                }
+                total = products[0].total;
+
+                const [orders] = await db.query(
+                    `INSERT INTO orders (user_id, address, order_date, total, payment_id, pending)
+                        VALUES (?, ?, NOW(), ?, ?, TRUE)`,
+                    [req.cookies.user_id, req.body.address, total, _id]
+                )
+                if (orders.affectedRows !== 1) {
+                    await connection.query('ROLLBACK')
+                    return res.status(500).json({ error: 'Can not insert order' })
+                }
+                order_id = orders.insertId;
+
+                const [details] = await db.query(
+                    `INSERT INTO order_details (order_id, book_id, quantity)
+                        (SELECT ?, book_id, quantity FROM products WHERE user_id = ?)`,
+                    [order_id, req.cookies.user_id]
+                )
+                if (details.affectedRows === 0) {
+                    await connection.query('ROLLBACK')
+                    return res.status(500).json({ error: 'Can not insert order details' })
+                }
+
+                const [deletedProducts] = await db.query(
+                    `DELETE FROM products WHERE user_id = ?`,
+                    [req.cookies.user_id]
+                )
+                if (deletedProducts.affectedRows === 0) {
+                    await connection.query('ROLLBACK')
+                    return res.status(500).json({ error: 'Can not delete products' })
+                }
+
+                await connection.query('COMMIT')
+            } catch (e) {
+                await connection.query('ROLLBACK')
+                throw e
+            } finally {
+                connection.release()
+            }
+
+            const [id, url] = await utilsController.pay(total, order_id)
+            const orders = await db.query(
+                `UPDATE orders SET payment_id = ? WHERE payment_id = ?`,
+                [id, _id]
+            )
+            if (orders.affectedRows === 0) {
+                return res.status(500).json({ error: 'Can not update order' })
+            }
+            return res.json({url})
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to create order' })
+        }
+    }
+
+    async getOrders(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [orders] = await db.query(
+                `SELECT order_id, order_date, total, pending FROM orders
+                    WHERE user_id = ? ORDER BY order_id DESC`,
+                [req.cookies.user_id]
+            )
+            res.json(orders.map(x => x))
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async getOneOrder(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1) {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+            const [details] = await db.query(
+                `SELECT b.*, d.quantity FROM order_details AS d
+                    JOIN books AS b ON b.book_id = d.book_id
+                    JOIN orders AS o ON o.order_id = d.order_id
+                    WHERE o.user_id = ? AND o.order_id = ? ORDER BY b.title`,
+                [req.cookies.user_id, req.params.id]
+            )
+            res.json(details.map(x => x))
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
 }
 
 module.exports = new UserController()

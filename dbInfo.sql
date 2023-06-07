@@ -141,6 +141,24 @@ BEGIN
         SET ver = ver + 1;
     END IF;
 
+    IF ver = 3 THEN
+        ALTER TABLE orders DROP FOREIGN KEY orders_ibfk_1;
+        ALTER TABLE orders DROP COLUMN book_id;
+
+        ALTER TABLE order_details ADD book_id INT;
+        ALTER TABLE order_details ADD CONSTRAINT FOREIGN KEY (book_id) REFERENCES books (book_id);
+
+        ALTER TABLE order_details DROP COLUMN address;
+        ALTER TABLE orders ADD COLUMN address VARCHAR(255) NOT NULL;
+
+        ALTER TABLE order_details DROP COLUMN order_date;
+        ALTER TABLE orders ADD COLUMN order_date DATE NOT NULL;
+
+        ALTER TABLE orders ADD COLUMN total INT;
+        ALTER TABLE orders ADD COLUMN payment_id VARCHAR(255);
+        ALTER TABLE orders ADD COLUMN pending BOOLEAN;
+    END IF;
+
     UPDATE schema_version SET schema_version = ver;
 END //
 DELIMITER ;

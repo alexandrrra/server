@@ -1,5 +1,10 @@
+const axios = require('axios')
+const {v4: uuid4} = require("uuid")
 const nodemailer = require('nodemailer')
 const db = require('../db')
+
+const YOOKASSA_ID = '319895'
+const YOOKASSA_KEY = 'test_7E_DSCwiim-wO2Ir0Vqsk3uuGuQHlnR3LO0-1ee10Is'
 
 const transporter = nodemailer.createTransport({
     host: "mail.hostland.ru",
@@ -54,6 +59,34 @@ class UtilsController  {
             userFeedbacks.length === 1 ? userFeedbacks[0] : {},
             feedbacks.map(x => x)
         ]
+    }
+
+    async pay(total, order_id) {
+        const response = await axios.post(
+            'https://api.yookassa.ru/v3/payments',
+            {
+                "amount": {
+                    "value": total,
+                    "currency": "RUB"
+                },
+                "capture": true,
+                "confirmation": {
+                    "type": "redirect",
+                    "return_url": "http://localhost:8081/"
+                },
+                "description": `Заказ номер ${order_id}`
+            },
+            {
+                headers: {
+                    "Idempotence-Key": uuid4()
+                },
+                auth: {
+                    username: YOOKASSA_ID,
+                    password: YOOKASSA_KEY
+                }
+            }
+        )
+        return [response.data.id, response.data.confirmation.confirmation_url]
     }
 }
 
