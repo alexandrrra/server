@@ -493,14 +493,22 @@ class UserController  {
             if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
-            const [details] = await db.query(
+            const [orders] = await db.query(
+                `SELECT total, address FROM orders
+                    WHERE user_id = ? AND order_id = ?`,
+                [req.cookies.user_id, req.params.id]
+            )
+            if (orders.length !== 1) {
+                return res.status(404).json({ error: 'Can not find order' })
+            }
+            const [products] = await db.query(
                 `SELECT b.*, d.quantity FROM order_details AS d
                     JOIN books AS b ON b.book_id = d.book_id
                     JOIN orders AS o ON o.order_id = d.order_id
                     WHERE o.user_id = ? AND o.order_id = ? ORDER BY b.title`,
                 [req.cookies.user_id, req.params.id]
             )
-            res.json(details.map(x => x))
+            res.json({...orders[0], products: products.map(x => x)})
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
