@@ -391,7 +391,6 @@ class UserController  {
             }
 
             let order_id, total
-            const _id = uuid4()
             const connection = await db.getConnection()
             try {
                 await connection.query('START TRANSACTION')
@@ -409,9 +408,9 @@ class UserController  {
                 total = products[0].total;
 
                 const [orders] = await db.query(
-                    `INSERT INTO orders (user_id, address, order_date, total, payment_id, pending)
+                    `INSERT INTO orders (user_id, address, order_date, total, pending)
                         VALUES (?, ?, NOW(), ?, ?, TRUE)`,
-                    [req.cookies.user_id, req.body.address, total, _id]
+                    [req.cookies.user_id, req.body.address, total]
                 )
                 if (orders.affectedRows !== 1) {
                     await connection.query('ROLLBACK')
@@ -448,8 +447,8 @@ class UserController  {
 
             const [id, url] = await utilsController.pay(total, order_id)
             const orders = await db.query(
-                `UPDATE orders SET payment_id = ? WHERE payment_id = ?`,
-                [id, _id]
+                `UPDATE orders SET payment_id = ? WHERE order_id = ?`,
+                [id, order_id]
             )
             if (orders.affectedRows === 0) {
                 return res.status(500).json({ error: 'Can not update order' })
@@ -471,8 +470,9 @@ class UserController  {
             if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
+            await utilsController.updateOrderStatus(req.cookies.user_id)
             const [orders] = await db.query(
-                `SELECT order_id, order_date, total, pending FROM orders
+                `SELECT order_id, order_date, total, pending, payment_id, canceled FROM orders
                     WHERE user_id = ? ORDER BY order_id DESC`,
                 [req.cookies.user_id]
             )

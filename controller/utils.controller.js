@@ -88,6 +88,39 @@ class UtilsController  {
         )
         return [response.data.id, response.data.confirmation.confirmation_url]
     }
+
+    async updateOrderStatus(user_id) {
+        const [orders] = await db.query(
+            `SELECT order_id, payment_id FROM orders WHERE pending AND user_id = ?`,
+            [user_id]
+        )
+        for (const row of orders) {
+            try {
+                const response = await axios.get(
+                    `https://api.yookassa.ru/v3/payments/${row.payment_id}`,
+                    {
+                        auth: {
+                            username: YOOKASSA_ID,
+                            password: YOOKASSA_KEY
+                        }
+                    }
+                )
+                if (response.data.status === "succeeded") {
+                    await db.query(
+                        `UPDATE orders SET pending = FALSE WHERE order_id = ?`,
+                        [row.order_id]
+                    )
+                } else if (response.data.status === "canceled") {
+                    await db.query(
+                        `UPDATE orders SET pending = FALSE, canceled = TRUE WHERE order_id = ?`,
+                        [row.order_id]
+                    )
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    }
 }
 
 module.exports = new UtilsController()

@@ -157,6 +157,13 @@ BEGIN
         ALTER TABLE orders ADD COLUMN total INT;
         ALTER TABLE orders ADD COLUMN payment_id VARCHAR(255);
         ALTER TABLE orders ADD COLUMN pending BOOLEAN;
+
+        SET ver = ver + 1;
+    END IF;
+
+    IF ver = 4 THEN
+        ALTER TABLE orders ADD COLUMN canceled BOOLEAN;
+        SET ver = ver + 1;
     END IF;
 
     UPDATE schema_version SET schema_version = ver;
