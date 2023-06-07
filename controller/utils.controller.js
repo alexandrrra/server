@@ -69,6 +69,20 @@ class UtilsController  {
                         `UPDATE orders SET pending = FALSE WHERE order_id = ?`,
                         [order.order_id]
                     )
+                    await db.query(
+                        `UPDATE
+                            books AS dst,
+                            (
+                                SELECT b.book_id, COALESCE(b.sales, 0) + d.quantity * b.price AS sales
+                                    FROM books AS b
+                                    JOIN order_details AS d ON d.book_id = b.book_id
+                                    JOIN orders AS o ON o.order_id = d.order_id
+                                    WHERE o.order_id = ?
+                            ) AS src
+                            SET dst.sales = src.sales
+                            WHERE src.book_id = dst.book_id`,
+                        [order.order_id]
+                    )
                     if (order.email) {
                         await utilsController.sendMail({
                             from: 'booklib@game1vs100.ru',
