@@ -72,7 +72,7 @@ class UtilsController  {
                 "capture": true,
                 "confirmation": {
                     "type": "redirect",
-                    "return_url": "http://localhost:8081/"
+                    "return_url": "http://localhost:8081/profile/orders"
                 },
                 "description": `Заказ номер ${order_id}`
             },
