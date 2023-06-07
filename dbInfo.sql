@@ -166,6 +166,11 @@ BEGIN
         SET ver = ver + 1;
     END IF;
 
+    IF ver = 5 THEN
+        ALTER TABLE orders ADD COLUMN name VARCHAR(255);
+        SET ver = ver + 1;
+    END IF;
+
     UPDATE schema_version SET schema_version = ver;
 END //
 DELIMITER ;

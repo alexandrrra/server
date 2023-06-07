@@ -408,9 +408,9 @@ class UserController  {
                 total = products[0].total;
 
                 const [orders] = await db.query(
-                    `INSERT INTO orders (user_id, address, total, order_date, pending)
-                        VALUES (?, ?, ?, NOW(), TRUE)`,
-                    [req.cookies.user_id, req.body.address, total]
+                    `INSERT INTO orders (user_id, address, name, total, order_date, pending)
+                        VALUES (?, ?, ?, ?, NOW(), TRUE)`,
+                    [req.cookies.user_id, req.body.address, req.body.name, total]
                 )
                 if (orders.affectedRows !== 1) {
                     await connection.query('ROLLBACK')
@@ -494,7 +494,7 @@ class UserController  {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
             const [orders] = await db.query(
-                `SELECT total, address FROM orders
+                `SELECT total, address, name FROM orders
                     WHERE user_id = ? AND order_id = ?`,
                 [req.cookies.user_id, req.params.id]
             )

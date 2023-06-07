@@ -74,7 +74,7 @@ class UtilsController  {
                             from: 'booklib@game1vs100.ru',
                             to: order.email,
                             subject: 'Booklib новый заказ',
-                            text: `Ваш заказ ${order.order_id} на сумму ${order.total} ₽ уже упаковывается чтобы отправится по адресу ${order.address}. Подробности в вашем ЛК.`
+                            text: `Ваш заказ ${order.order_id} на сумму ${order.total} ₽ на имя ${order.name} уже упаковывается чтобы отправится по адресу ${order.address}. Подробности в вашем ЛК.`
                         })
                     }
                 } else if (response.data.status === "canceled") {
