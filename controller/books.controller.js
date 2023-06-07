@@ -78,6 +78,46 @@ class BooksController {
         }
     }
 
+    async getRatingAndFeedbacks(book_id, user_id) {
+        let userFeedbacks = []
+        if (user_id) {
+            [userFeedbacks] = await db.query(
+                `SELECT f.*, u.login FROM feedbacks AS f
+                    LEFT JOIN users AS u ON f.user_id = u.user_id
+                    WHERE f.book_id = ? AND f.user_id = ?`,
+                [book_id, user_id]
+            )
+        }
+        const [feedbacks] = await db.query(
+            `SELECT f.*, u.login FROM feedbacks AS f
+                LEFT JOIN users AS u ON f.user_id = u.user_id
+                WHERE f.book_id = ?${user_id ? ' AND f.user_id <> ?' : ''} ORDER BY feedback_id DESC`,
+            user_id ? [book_id, user_id] : [book_id]
+        )
+        let rating = 0
+        let count = 0;
+        if (userFeedbacks.length > 0 && userFeedbacks[0].rating) {
+            rating = userFeedbacks[0].rating
+            count++;
+        }
+        if (feedbacks.length > 0) {
+            for (const f of feedbacks) {
+                if (f.rating) {
+                    rating += f.rating
+                    count++;
+                }
+            }
+        }
+        if (count) {
+            rating /= count
+        }
+        return [
+            rating,
+            userFeedbacks.length === 1 ? userFeedbacks[0] : {},
+            feedbacks.map(x => x)
+        ]
+    }
+
     async getOneBook(req, res) {
         try {
             const [books] = await db.query(
@@ -92,7 +132,7 @@ class BooksController {
             if (books.length !== 1) {
                 return res.status(404).json({ error: 'Failed to get one book' })
             }
-            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            const [rating, user_feedback, feedbacks] = await booksController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
             res.json({...books[0], rating, user_feedback, feedbacks})
         } catch (error) {
             console.error(error)
@@ -119,7 +159,7 @@ class BooksController {
             if (userFeedbacks.affectedRows !== 1) {
                 return res.status(404).json({ error: 'Can not insert new feedback' })
             }
-            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            const [rating, user_feedback, feedbacks] = await booksController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
             res.json({rating, user_feedback, feedbacks})
         } catch (error) {
             console.error(error)
@@ -144,7 +184,7 @@ class BooksController {
             if (userFeedbacks.affectedRows !== 1) {
                 return res.status(404).json({ error: 'Can not update feedback' })
             }
-            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            const [rating, user_feedback, feedbacks] = await booksController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
             res.json({rating, user_feedback, feedbacks})
         } catch (error) {
             console.error(error)
@@ -166,7 +206,7 @@ class BooksController {
                 `DELETE FROM feedbacks WHERE book_id = ? AND user_id = ?`,
                 [req.params.id, req.cookies.user_id]
             )
-            const [rating, user_feedback, feedbacks] = await utilsController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
+            const [rating, user_feedback, feedbacks] = await booksController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
             res.json({rating, user_feedback, feedbacks})
         } catch (error) {
             console.error(error)
@@ -226,4 +266,6 @@ class BooksController {
     }
 }
 
-module.exports = new BooksController()
+const booksController = new BooksController()
+
+module.exports = booksController

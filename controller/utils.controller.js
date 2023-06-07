@@ -21,46 +21,6 @@ class UtilsController  {
         return await transporter.sendMail(mailOptions)
     }
 
-    async getRatingAndFeedbacks(book_id, user_id) {
-        let userFeedbacks = []
-        if (user_id) {
-            [userFeedbacks] = await db.query(
-                `SELECT f.*, u.login FROM feedbacks AS f
-                    LEFT JOIN users AS u ON f.user_id = u.user_id
-                    WHERE f.book_id = ? AND f.user_id = ?`,
-                [book_id, user_id]
-            )
-        }
-        const [feedbacks] = await db.query(
-            `SELECT f.*, u.login FROM feedbacks AS f
-                LEFT JOIN users AS u ON f.user_id = u.user_id
-                WHERE f.book_id = ?${user_id ? ' AND f.user_id <> ?' : ''} ORDER BY feedback_id DESC`,
-            user_id ? [book_id, user_id] : [book_id]
-        )
-        let rating = 0
-        let count = 0;
-        if (userFeedbacks.length > 0 && userFeedbacks[0].rating) {
-            rating = userFeedbacks[0].rating
-            count++;
-        }
-        if (feedbacks.length > 0) {
-            for (const f of feedbacks) {
-                if (f.rating) {
-                    rating += f.rating
-                    count++;
-                }
-            }
-        }
-        if (count) {
-            rating /= count
-        }
-        return [
-            rating,
-            userFeedbacks.length === 1 ? userFeedbacks[0] : {},
-            feedbacks.map(x => x)
-        ]
-    }
-
     async pay(total, order_id) {
         const response = await axios.post(
             'https://api.yookassa.ru/v3/payments',
@@ -89,15 +49,14 @@ class UtilsController  {
         return [response.data.id, response.data.confirmation.confirmation_url]
     }
 
-    async updateOrderStatus(user_id) {
+    async updateOrderStatuses() {
         const [orders] = await db.query(
-            `SELECT order_id, payment_id FROM orders WHERE pending AND user_id = ?`,
-            [user_id]
+            `SELECT o.*, u.email FROM orders AS o JOIN users AS u ON u.user_id = o.user_id WHERE pending`
         )
-        for (const row of orders) {
+        for (const order of orders) {
             try {
                 const response = await axios.get(
-                    `https://api.yookassa.ru/v3/payments/${row.payment_id}`,
+                    `https://api.yookassa.ru/v3/payments/${order.payment_id}`,
                     {
                         auth: {
                             username: YOOKASSA_ID,
@@ -108,12 +67,20 @@ class UtilsController  {
                 if (response.data.status === "succeeded") {
                     await db.query(
                         `UPDATE orders SET pending = FALSE WHERE order_id = ?`,
-                        [row.order_id]
+                        [order.order_id]
                     )
+                    if (order.email) {
+                        await utilsController.sendMail({
+                            from: 'booklib@game1vs100.ru',
+                            to: order.email,
+                            subject: 'Booklib новый заказ',
+                            text: `Ваш заказ ${order.order_id} на сумму ${order.total} ₽ уже упаковывается чтобы отправится по адресу ${order.address}. Подробности в вашем ЛК.`
+                        })
+                    }
                 } else if (response.data.status === "canceled") {
                     await db.query(
                         `UPDATE orders SET pending = FALSE, canceled = TRUE WHERE order_id = ?`,
-                        [row.order_id]
+                        [order.order_id]
                     )
                 }
             } catch (error) {
@@ -123,4 +90,6 @@ class UtilsController  {
     }
 }
 
-module.exports = new UtilsController()
+const utilsController = new UtilsController()
+
+module.exports = utilsController

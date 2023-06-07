@@ -197,8 +197,8 @@ class UserController  {
             await utilsController.sendMail({
                 from: 'booklib@game1vs100.ru',
                 to: email,
-                subject: 'Booklib one-time password',
-                text: `Your one-time password is ${oneTimePassword}`
+                subject: 'Booklib одноразовый пароль',
+                text: `Ваш одноразовый пароль ${oneTimePassword}`
             })
 
             res.status(200).json({message: 'One-time password send successfully'})
@@ -470,7 +470,7 @@ class UserController  {
             if (users.length !== 1) {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
-            await utilsController.updateOrderStatus(req.cookies.user_id)
+            await utilsController.updateOrderStatuses()
             const [orders] = await db.query(
                 `SELECT order_id, order_date, total, pending, payment_id, canceled FROM orders
                     WHERE user_id = ? ORDER BY order_id DESC`,
