@@ -171,6 +171,11 @@ BEGIN
         SET ver = ver + 1;
     END IF;
 
+    IF ver = 6 THEN
+        ALTER TABLE books ADD COLUMN sales INT;
+        SET ver = ver + 1;
+    END IF;
+
     UPDATE schema_version SET schema_version = ver;
 END //
 DELIMITER ;

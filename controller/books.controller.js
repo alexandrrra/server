@@ -68,7 +68,7 @@ class BooksController {
                 LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
                 LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
                 LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
-                WHERE ${conditions.join(" AND ")} ORDER BY ` + (newOnly ? "book_id DESC LIMIT 4" : "title")
+                WHERE ${conditions.join(" AND ")} ORDER BY ` + (newOnly ? "book_id DESC LIMIT 30" : "title")
 
             const [books] = await db.query(sql, values)
             res.json(books.map(x => x))
@@ -259,6 +259,22 @@ class BooksController {
                 `%${req.query.name}%`
             )
             res.json(items.map(x => x))
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Unexpected error' })
+        }
+    }
+
+    async getBestsellers(req, res) {
+        try {
+            const sql = `SELECT b.*, g.*, p.* FROM books AS b
+                LEFT JOIN books_genres AS bg ON bg.book_id = b.book_id
+                LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
+                LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
+                LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
+                ORDER BY sales DESC LIMIT 30`
+            const [books] = await db.query(sql)
+            res.json(books.map(x => x))
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
