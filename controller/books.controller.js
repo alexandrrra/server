@@ -281,6 +281,44 @@ class BooksController {
         }
     }
 
+    async updateOpt(opt, book_id, value) {
+        const name = (value && value[`${opt}_name`]) || value
+        if (!value) {
+            return
+        }
+        let id
+        const [items] = await db.query(
+            `SELECT * FROM ${opt}s WHERE ${opt}_name = ?`,
+            [name]
+        )
+        if (items.length === 0) {
+            const [newItems] = await db.query(
+                `INSERT INTO ${opt}s (${opt}_name) VALUES (?)`,
+                [name]
+            )
+            id = newItems.insertId
+        } else {
+            id = items[0][`${opt}_id`]
+        }
+
+        const [books_opts] = await db.query(
+            `SELECT * FROM books_${opt}s WHERE book_id = ?`,
+            [book_id]
+        )
+
+        if (books_opts.length > 0) {
+            await db.query(
+                `UPDATE books_${opt}s SET ${opt}_id = ? WHERE book_id = ?`,
+                [id, book_id]
+            )
+        } else {
+            await db.query(
+                `INSERT INTO books_${opt}s (${opt}_id, book_id) VALUES (?, ?)`,
+                [id, book_id]
+            )
+        }
+    }
+
     async createBook(req, res) {
         try {
             const [users] = await db.query(
@@ -296,6 +334,9 @@ class BooksController {
                 `INSERT INTO books (title, author, price) VALUES (?, ?, ?)`,
                 [req.body.title, req.body.author, req.body.price]
             )
+
+            await booksController.updateOpt('genre', books.insertId, req.body.genre)
+            await booksController.updateOpt('publishment', books.insertId, req.body.publishment)
 
             res.status(200).json({ book_id: books.insertId })
         } catch (error) {
@@ -315,13 +356,18 @@ class BooksController {
                 return res.status(403).json({ error: 'Bad user_id or token' })
             }
 
+            const bookId = parseInt(req.params.id)
+
             const [books] = await db.query(
                 `UPDATE books SET title = ?, author = ?, price = ? WHERE book_id = ?`,
-                [req.body.title, req.body.author, req.body.price, req.params.id]
+                [req.body.title, req.body.author, req.body.price, bookId]
             )
             if (books.affectedRows !== 1) {
                 return res.status(404).json({ error: 'Can not update book' })
             }
+
+            await booksController.updateOpt('genre', bookId, req.body.genre)
+            await booksController.updateOpt('publishment', bookId, req.body.publishment)
 
             res.status(200).json({ message: 'Book updated successfully' })
         } catch (error) {
