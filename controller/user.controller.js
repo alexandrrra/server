@@ -9,7 +9,10 @@ const md5 = data => crypto.createHash("md5").update(data).digest("hex")
 const SALT = "a31bda48-bf07-417a-af1c-18056351cb95"
 
 const profileFields = new Set(["role", "first_name", "last_name", "middle_name", "login", "phone", "email"])
-const extractProfile = user => pickBy(user, (value, key) => profileFields.has(key))
+const extractProfile = user => ({
+    ...pickBy(user, (value, key) => profileFields.has(key)),
+    full_name: [user.first_name, user.last_name, user.middle_name].join(" ")
+})
 
 class UserController  {
     async createUser(req, res) {

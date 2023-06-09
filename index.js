@@ -1,6 +1,7 @@
 const express = require('express');
 const booksRouter = require('./routes/books.routes');
 const userRouter = require('./routes/user.routes');
+const picRouter = require('./routes/pic.routes');
 const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -20,6 +21,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use('/api', booksRouter);
 app.use('/api', userRouter);
+app.use('/api', picRouter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'static')));
 app.use(express.static(path.join(__dirname, '../book_store/dist')));

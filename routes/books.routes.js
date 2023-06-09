@@ -8,6 +8,8 @@ router.post('/books/:id/feedback', booksController.createFeedback)
 router.put('/books/:id/feedback', booksController.updateFeedback)
 router.delete('/books/:id/feedback', booksController.deleteFeedback)
 router.get('/bestsellers', booksController.getBestsellers)
+router.post('/books', booksController.createBook)
+router.post('/books/:id', booksController.updateBook)
 
 router.get('/priceRange', booksController.getPriceRange)
 router.get('/authors', booksController.getAuthors)

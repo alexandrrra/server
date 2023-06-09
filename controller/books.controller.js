@@ -280,6 +280,55 @@ class BooksController {
             res.status(500).json({ error: 'Unexpected error' })
         }
     }
+
+    async createBook(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1 || users[0].role !== "admin") {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+
+            const [books] = await db.query(
+                `INSERT INTO books (title, author, price) VALUES (?, ?, ?)`,
+                [req.body.title, req.body.author, req.body.price]
+            )
+
+            res.status(200).json({ book_id: books.insertId })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to create book' })
+        }
+    }
+
+    async updateBook(req, res) {
+        try {
+            const [users] = await db.query(
+                `SELECT * FROM users
+                    WHERE user_id = ? AND token = ?`,
+                [req.cookies.user_id, req.cookies.token]
+            )
+            if (users.length !== 1 || users[0].role !== "admin") {
+                return res.status(403).json({ error: 'Bad user_id or token' })
+            }
+
+            const [books] = await db.query(
+                `UPDATE books SET title = ?, author = ?, price = ? WHERE book_id = ?`,
+                [req.body.title, req.body.author, req.body.price, req.params.id]
+            )
+            if (books.affectedRows !== 1) {
+                return res.status(404).json({ error: 'Can not update book' })
+            }
+
+            res.status(200).json({ message: 'Book updated successfully' })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ error: 'Failed to update book' })
+        }
+    }
 }
 
 const booksController = new BooksController()
