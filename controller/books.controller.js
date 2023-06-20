@@ -1,7 +1,7 @@
 const db = require('../db')
 const fs = require('fs')
 const path = require('path')
-const utilsController = require ('./utils.controller')
+const {pickBy} = require("lodash")
 
 function deleteFile(filePath) {
     fs.unlink(path.join(__dirname, filePath), (err) => {
@@ -14,6 +14,22 @@ function deleteFile(filePath) {
 }
 
 class BooksController {
+    agg(books) {
+        const res = []
+        let currentBook
+        for (const book of books) {
+            if (!currentBook || currentBook.book_id !== book.book_id) {
+                currentBook = pickBy(book, (value, key) => ["genre_id", "genre_name"].indexOf(key) === -1)
+                currentBook.genres = []
+                res.push(currentBook)
+            }
+            if (book.genre_id) {
+                currentBook.genres.push({genre_id: book.genre_id, genre_name: book.genre_name})
+            }
+        }
+        return res
+    }
+
     async getBooks(req, res) {
         try {
             const newOnly = req.query.newOnly === "true"
@@ -48,12 +64,12 @@ class BooksController {
                 values.push(filter.author);
             }
 
-            if (filter.genre !== undefined) {
+            if (filter.genre !== undefined && filter.genre !== '') {
                 conditions.push('g.genre_id = ?');
                 values.push(filter.genre);
             }
 
-            if (filter.publishment !== undefined) {
+            if (filter.publishment !== undefined && filter.publishment !== '') {
                 conditions.push('p.publishment_id = ?');
                 values.push(filter.publishment);
             }
@@ -68,10 +84,14 @@ class BooksController {
                 LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
                 LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
                 LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
-                WHERE ${conditions.join(" AND ")} ORDER BY ` + (newOnly ? "book_id DESC LIMIT 30" : "title")
+                WHERE ${conditions.join(" AND ")} ORDER BY ` + (newOnly ? "book_id DESC" : "title, book_id")
 
-            const [books] = await db.query(sql, values)
-            res.json(books.map(x => x))
+            let [books] = await db.query(sql, values)
+            books = booksController.agg(books)
+            if (newOnly) {
+                books = books.slice(0, 30)
+            }
+            res.json(books)
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
@@ -120,7 +140,7 @@ class BooksController {
 
     async getOneBook(req, res) {
         try {
-            const [books] = await db.query(
+            let [books] = await db.query(
                 `SELECT b.*, g.*, p.* FROM books AS b
                     LEFT JOIN books_genres AS bg ON bg.book_id = b.book_id
                     LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
@@ -129,9 +149,10 @@ class BooksController {
                     WHERE b.book_id = ?`,
                 [req.params.id]
             )
-            if (books.length !== 1) {
+            if (books.length === 0) {
                 return res.status(404).json({ error: 'Failed to get one book' })
             }
+            books = booksController.agg(books)
             const [rating, user_feedback, feedbacks] = await booksController.getRatingAndFeedbacks(req.params.id, req.cookies.user_id)
             res.json({...books[0], rating, user_feedback, feedbacks})
         } catch (error) {
@@ -272,9 +293,10 @@ class BooksController {
                 LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
                 LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
                 LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
-                ORDER BY sales DESC LIMIT 30`
-            const [books] = await db.query(sql)
-            res.json(books.map(x => x))
+                ORDER BY sales, book_id DESC`
+            let [books] = await db.query(sql)
+            books = booksController.agg(books).slice(0, 30)
+            res.json(books)
         } catch (error) {
             console.error(error)
             res.status(500).json({ error: 'Unexpected error' })
@@ -301,22 +323,10 @@ class BooksController {
             id = items[0][`${opt}_id`]
         }
 
-        const [books_opts] = await db.query(
-            `SELECT * FROM books_${opt}s WHERE book_id = ?`,
-            [book_id]
+        await db.query(
+            `INSERT INTO books_${opt}s (${opt}_id, book_id) VALUES (?, ?)`,
+            [id, book_id]
         )
-
-        if (books_opts.length > 0) {
-            await db.query(
-                `UPDATE books_${opt}s SET ${opt}_id = ? WHERE book_id = ?`,
-                [id, book_id]
-            )
-        } else {
-            await db.query(
-                `INSERT INTO books_${opt}s (${opt}_id, book_id) VALUES (?, ?)`,
-                [id, book_id]
-            )
-        }
     }
 
     async createBook(req, res) {
@@ -335,7 +345,17 @@ class BooksController {
                 [req.body.title, req.body.author, req.body.price]
             )
 
-            await booksController.updateOpt('genre', books.insertId, req.body.genre)
+            await db.query(
+                `DELETE FROM books_genres WHERE book_id = ?`,
+                [books.insertId]
+            )
+            for (const genre of req.body.genres) {
+                await booksController.updateOpt('genre', books.insertId, genre)
+            }
+            await db.query(
+                `DELETE FROM books_publishments WHERE book_id = ?`,
+                [books.insertId]
+            )
             await booksController.updateOpt('publishment', books.insertId, req.body.publishment)
 
             res.status(200).json({ book_id: books.insertId })
@@ -366,7 +386,17 @@ class BooksController {
                 return res.status(404).json({ error: 'Can not update book' })
             }
 
-            await booksController.updateOpt('genre', bookId, req.body.genre)
+            await db.query(
+                `DELETE FROM books_genres WHERE book_id = ?`,
+                [bookId]
+            )
+            for (const genre of req.body.genres) {
+                await booksController.updateOpt('genre', bookId, genre)
+            }
+            await db.query(
+                `DELETE FROM books_publishments WHERE book_id = ?`,
+                [bookId]
+            )
             await booksController.updateOpt('publishment', bookId, req.body.publishment)
 
             res.status(200).json({ message: 'Book updated successfully' })
