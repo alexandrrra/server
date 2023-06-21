@@ -16,16 +16,17 @@ function deleteFile(filePath) {
 class BooksController {
     agg(books) {
         const res = []
-        let currentBook
         for (const book of books) {
-            if (!currentBook || currentBook.book_id !== book.book_id) {
-                currentBook = pickBy(book, (value, key) => ["genre_id", "genre_name"].indexOf(key) === -1)
-                currentBook.genres = []
-                res.push(currentBook)
-            }
+            const currentBook = pickBy(book, (value, key) => ["genre_id", "genre_name"].indexOf(key) === -1)
+            currentBook.genres = []
             if (book.genre_id) {
-                currentBook.genres.push({genre_id: book.genre_id, genre_name: book.genre_name})
+                const genre_id = book.genre_id.split(",")
+                const genre_name = book.genre_name.split(",")
+                for (let i = 0; i < genre_id.length; i++) {
+                    currentBook.genres.push({genre_id: genre_id[i], genre_name: genre_name[i]})
+                }
             }
+            res.push(currentBook)
         }
         return res
     }
@@ -79,18 +80,14 @@ class BooksController {
                 values.push(true)
             }
 
-            const sql = `SELECT b.*, g.*, p.* FROM books AS b
+            const sql = `SELECT b.*, GROUP_CONCAT(g.genre_id) AS genre_id, GROUP_CONCAT(g.genre_name) AS genre_name, p.* FROM books AS b
                 LEFT JOIN books_genres AS bg ON bg.book_id = b.book_id
                 LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
                 LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
                 LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
-                WHERE ${conditions.join(" AND ")} ORDER BY ` + (newOnly ? "book_id DESC" : "title, book_id")
-
+                WHERE ${conditions.join(" AND ")} GROUP BY b.book_id ORDER BY ` + (newOnly ? "book_id DESC LIMIT 30" : "title")
             let [books] = await db.query(sql, values)
             books = booksController.agg(books)
-            if (newOnly) {
-                books = books.slice(0, 30)
-            }
             res.json(books)
         } catch (error) {
             console.error(error)
@@ -141,12 +138,12 @@ class BooksController {
     async getOneBook(req, res) {
         try {
             let [books] = await db.query(
-                `SELECT b.*, g.*, p.* FROM books AS b
+                `SELECT b.*, GROUP_CONCAT(g.genre_id) AS genre_id, GROUP_CONCAT(g.genre_name) AS genre_name, p.* FROM books AS b
                     LEFT JOIN books_genres AS bg ON bg.book_id = b.book_id
                     LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
                     LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
                     LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
-                    WHERE b.book_id = ?`,
+                    WHERE b.book_id = ? GROUP BY b.book_id`,
                 [req.params.id]
             )
             if (books.length === 0) {
@@ -288,14 +285,15 @@ class BooksController {
 
     async getBestsellers(req, res) {
         try {
-            const sql = `SELECT b.*, g.*, p.* FROM books AS b
+            const sql = `SELECT b.*, GROUP_CONCAT(g.genre_id) AS genre_id, GROUP_CONCAT(g.genre_name) AS genre_name, p.* FROM books AS b
                 LEFT JOIN books_genres AS bg ON bg.book_id = b.book_id
                 LEFT JOIN genres AS g ON g.genre_id = bg.genre_id
                 LEFT JOIN books_publishments AS bp ON bp.book_id = b.book_id
                 LEFT JOIN publishments AS p ON p.publishment_id = bp.publishment_id
-                ORDER BY sales, book_id DESC`
+                GROUP BY b.book_id
+                ORDER BY sales DESC LIMIT 30`
             let [books] = await db.query(sql)
-            books = booksController.agg(books).slice(0, 30)
+            books = booksController.agg(books)
             res.json(books)
         } catch (error) {
             console.error(error)
